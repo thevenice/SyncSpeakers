@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Whatever your Mac plays — any app — comes out of every speaker and every Mac in the house at the same moment.
+  Whatever your Mac plays — any app — comes out of every speaker, every Mac and every phone in the house at the same moment.
 </p>
 
 <p align="center">
@@ -25,9 +25,10 @@ browser, Apple Music, VLC, games — and plays it, in sync, on:
 
 - **This Mac's speakers**: built-in, Bluetooth, USB, HDMI/DisplayPort. Tick as many as you like.
 - **Other Macs on the same Wi-Fi**: any Mac with SyncSpeakers open shows up automatically.
+- **iPhones, Android phones and tablets**: scan the QR code, tap **Join**, done. No app to install.
 
 Think of it as a DIY multi-room / home-theatre system made from the Macs and speakers you already have.
-No accounts, no cloud, no extra hardware. One small native app, about 1,000 lines of Swift.
+No accounts, no cloud, no extra hardware. One small native app, about 1,200 lines of Swift.
 
 ## Screenshots
 
@@ -52,6 +53,7 @@ No accounts, no cloud, no extra hardware. One small native app, about 1,000 line
 - Clock sync between Macs, so every device plays each sound at the same instant
 - Adjustable Wi-Fi buffer, plus a fine-tune slider on each receiving Mac
 - **Test click** button to check alignment by ear
+- **Scan & join:** phones join the swarm from a QR code and play in their browser, in sync
 - AirDrop the app to another Mac straight from the window
 - Restores your normal sound output when you stop or quit
 
@@ -94,13 +96,18 @@ Because the app is ad-hoc signed (not notarized), the first time you open a copi
 **On every other Mac**: just open SyncSpeakers and leave it running. It receives automatically and shows
 *"This Mac is playing sound from …"*.
 
+**On phones and tablets** (iPhone, iPad, Android): while the source Mac is playing, its window shows a
+QR code. Scan it with the camera, tap **Join 🔊**, and the phone plays along. Keep the page open with the
+screen on: browsers stop sound when the phone locks. Each phone has its own **Fine-tune** slider.
+
 **Getting it tight**
 
 | Problem | Fix |
 | --- | --- |
 | A Bluetooth speaker lags | Give the *other* local speakers 150–250 ms of **Delay** until **Test click** sounds like one click |
 | Another Mac is early or late | Move **Fine-tune** on that Mac |
-| A Mac stutters or drops out | Raise the **Wi-Fi buffer** |
+| A Mac or phone stutters or drops out | Raise the **Wi-Fi buffer** |
+| A phone is early or late | Move **Fine-tune** on the phone's page |
 | Video lip-sync feels off | Lower the **Wi-Fi buffer** (everything plays that much later) |
 
 ### Permissions
@@ -108,7 +115,7 @@ Because the app is ad-hoc signed (not notarized), the first time you open a copi
 macOS asks once for each:
 
 - **Screen & System Audio Recording** — to capture what your Mac plays
-- **Local Network** — to find and stream to your other Macs
+- **Local Network** — to find and stream to your other Macs and phones
 
 ## How it works
 
@@ -119,10 +126,11 @@ macOS asks once for each:
                        │                     └─► TCP stream (16-bit PCM + time) │
                        └─────────────────────────────────┬──────────────────────┘
                                                          │ Wi-Fi (Bonjour _syncspk._tcp)
-                                          ┌──────────────▼─────────────┐
-                                          │ other Mac: clock sync ─►   │─► its speakers
-                                          │ ring buffer ─► output      │
-                                          └────────────────────────────┘
+                              ┌──────────────────────────┴───────────────────────────┐
+               ┌──────────────▼─────────────┐                  ┌─────────────────────▼──────┐
+               │ other Mac: clock sync ─►   │─► its speakers   │ phone browser (QR → :7777) │─► phone speaker
+               │ ring buffer ─► output      │                  │ WebSocket ─► Web Audio     │
+               └────────────────────────────┘                  └────────────────────────────┘
 ```
 
 - **Capture.** A global Core Audio *process tap* (`CATapDescription`) records the mix of every app except
@@ -133,6 +141,9 @@ macOS asks once for each:
   round trip (NTP-style), so network jitter doesn't move the timing.
 - **Playback.** A HAL output unit pulls from a ring buffer. If playback drifts more than 0.25 ms from where it
   should be, it nudges by a single sample; big jumps resync instantly.
+- **Phones.** The source Mac also runs a tiny web server on port 7777. The QR code opens a page that
+  receives the same stream over a WebSocket, syncs to the Mac's clock the same way, and schedules each
+  chunk with Web Audio at the exact moment it should play.
 - **Local speakers.** Several devices are grouped into one stacked aggregate device with drift
   compensation. Per-speaker delay uses the sub-device extra-latency setting.
 
@@ -147,12 +158,16 @@ TCP, each message `[type: u8][length: u32 LE][payload]`:
 | `3` ping | sender time `i64` ns (receiver → source) |
 | `4` pong | echoed time `i64`, source time `i64` ns |
 
+Phones get the same messages as WebSocket binary frames (`[type][payload]`, no length prefix), with the
+ping time as `f64` milliseconds and an extra `5` *stopped* message.
+
 ## Project layout
 
 ```
 Sources/main.swift   SwiftUI window and the Router that wires everything together
 Sources/Audio.swift  Core Audio helpers, system-audio capture, time-aligned player
 Sources/Net.swift    Bonjour discovery, streaming sender, receiver with clock sync
+Sources/Web.swift    web server + WebSocket for phones, and the phone page itself
 tools/make-icon.swift  draws assets/icon.png
 tools/make-art.swift   trims screenshots and draws assets/banner.png
 build.sh             builds SyncSpeakers.app and SyncSpeakers.zip
@@ -160,10 +175,11 @@ build.sh             builds SyncSpeakers.app and SyncSpeakers.zip
 
 ## Limitations
 
-- Receivers must be Macs running SyncSpeakers. iPhones, Android, smart TVs and HomePods can't receive
-  the stream yet.
+- The source must be a Mac: iOS doesn't let apps capture other apps' sound.
+- Phones play only while the page is open and the screen is on (no background playback in the browser).
+- Smart TVs and HomePods can't receive the stream yet (a TV with a browser may work, untested).
 - Everything is delayed by the Wi-Fi buffer (400 ms by default), which matters for video.
-- Audio is sent uncompressed (~1.5 Mbit/s per receiving Mac). Fine on home Wi-Fi; a phone hotspot may need
+- Audio is sent uncompressed (~1.5 Mbit/s per receiving Mac or phone). Fine on home Wi-Fi; a phone hotspot may need
   a bigger buffer.
 - Bluetooth speakers add their own latency, which you line up by ear with the delay sliders.
 
@@ -171,7 +187,7 @@ build.sh             builds SyncSpeakers.app and SyncSpeakers.zip
 
 Issues and pull requests are welcome. Ideas that would make a big difference:
 
-- A receiver for iOS / Android / a browser
+- Native iOS / Android receivers that keep playing with the screen locked
 - Opus compression for weak Wi-Fi
 - Automatic Bluetooth latency calibration using the microphone
 - A menu-bar-only mode and launch at login

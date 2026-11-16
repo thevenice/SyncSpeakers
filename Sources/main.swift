@@ -9,6 +9,7 @@ import SwiftUI
 import CoreAudio
 import AppKit
 import Network
+import CoreImage
 
 struct Speaker: Identifiable, Hashable {
     let id: String          // CoreAudio UID
@@ -47,6 +48,14 @@ final class Router: ObservableObject {
     private var player: Player?
     private var broadcaster: Broadcaster?
     private let receiver = Receiver()
+    private let web = WebHub()
+    // Phones & browsers
+    @Published var webPort: UInt16 = 0
+    @Published var phonesListening = 0
+    var joinURL: String? {
+        guard webPort != 0, let ip = localIPv4() else { return nil }
+        return "http://\(ip)" + (webPort == 80 ? "" : ":\(webPort)")
+    }
     private var browser: NWBrowser?
     private var endpoints: [String: NWEndpoint] = [:]
 
@@ -68,6 +77,9 @@ final class Router: ObservableObject {
         }
         receiver.onSender = { [weak self] from in Task { @MainActor in self?.receivingFrom = from } }
         receiver.start()
+        web.onPort = { [weak self] port in Task { @MainActor in self?.webPort = port } }
+        web.onCount = { [weak self] n in Task { @MainActor in self?.phonesListening = n } }
+        web.start()
         browse()
     }
 
@@ -139,7 +151,6 @@ final class Router: ObservableObject {
     func start() {
         let chosen = speakers.filter { selected.contains($0.id) }
         let macs = peers.filter { peerChosen.contains($0) }
-        guard !chosen.isEmpty || !macs.isEmpty else { status = "Tick at least one speaker or Mac."; return }
         if !isOn { previousDefault = CA.defaultOutput }
         stopEngine()
         teardownAggregate()
@@ -183,7 +194,8 @@ final class Router: ObservableObject {
                 isOn = true
                 let parts = [chosen.isEmpty ? nil : "\(chosen.count) speaker\(chosen.count == 1 ? "" : "s") here",
                              macs.isEmpty ? nil : "\(macs.count) Mac\(macs.count == 1 ? "" : "s") over Wi-Fi"].compactMap { $0 }
-                status = "Playing everything from this Mac on " + parts.joined(separator: " + ") + "."
+                status = parts.isEmpty ? "Playing for phones only — scan the QR code to join."
+                    : "Playing everything from this Mac on " + parts.joined(separator: " + ") + " + any phones that join."
             } catch {
                 stopEngine()
                 status = error.localizedDescription
@@ -215,9 +227,13 @@ final class Router: ObservableObject {
         for name in macs { if let ep = endpoints[name] { b.connect(name: name, endpoint: ep) } }
 
         let localPlayer = p
+        let hub = web
+        hub.begin(sampleRate: cap.sampleRate, delayNs: delayNs, name: myServiceName)
         cap.onAudio = { index, ns, frames, count in
             localPlayer?.write(index: index, senderNs: ns, frames: frames, count: count)
-            b.send(index: index, senderNs: ns, frames: frames, count: count)
+            let payload = audioPayload(index: index, senderNs: ns, frames: frames, count: count)
+            b.send(payload: payload)
+            hub.send(payload: payload)
         }
         player = p
         capture = cap
@@ -241,6 +257,7 @@ final class Router: ObservableObject {
         level = 0
         capture?.stop(); capture = nil
         broadcaster?.stop(); broadcaster = nil
+        web.end()
         player?.stop(); player = nil
         peerLive.removeAll()
     }
@@ -289,6 +306,17 @@ final class Router: ObservableObject {
 }
 
 // MARK: - UI
+
+func qrImage(_ text: String) -> NSImage? {
+    guard let f = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+    f.setValue(Data(text.utf8), forKey: "inputMessage")
+    f.setValue("M", forKey: "inputCorrectionLevel")
+    guard let out = f.outputImage?.transformed(by: CGAffineTransform(scaleX: 10, y: 10)) else { return nil }
+    let rep = NSCIImageRep(ciImage: out)
+    let img = NSImage(size: rep.size)
+    img.addRepresentation(rep)
+    return img
+}
 
 struct ContentView: View {
     @EnvironmentObject var r: Router
@@ -348,6 +376,31 @@ struct ContentView: View {
             }
             Text("Everything plays this much later on all devices. Raise it if a Mac stutters.")
                 .font(.caption2).foregroundStyle(.tertiary)
+
+            Divider()
+            HStack(alignment: .top, spacing: 14) {
+                if r.isOn, let url = r.joinURL, let qr = qrImage(url) {
+                    Image(nsImage: qr).interpolation(.none).resizable()
+                        .frame(width: 112, height: 112)
+                        .padding(6).background(.white, in: RoundedRectangle(cornerRadius: 10))
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Phones & tablets").font(.headline)
+                        if r.phonesListening > 0 {
+                            Text("● \(r.phonesListening) listening").font(.caption).foregroundStyle(.green)
+                        }
+                    }
+                    if r.isOn, let url = r.joinURL {
+                        Text("Scan with the camera, tap Join. Any phone on this Wi-Fi joins in sync — no app needed.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(url).font(.caption.monospaced()).textSelection(.enabled)
+                    } else {
+                        Text("Press Play Everywhere to show a QR code. iPhones, Android phones and tablets scan it and play along in their browser.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
 
             if let from = r.receivingFrom {
                 Divider()

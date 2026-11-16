@@ -60,6 +60,16 @@ var myServiceName: String {
     ProcessInfo.processInfo.environment["SYNCSPEAKERS_NAME"] ?? Host.current().localizedName ?? "Mac"
 }
 
+/// index:i64 senderNs:i64 then int16 L/R pairs — shared by Mac and browser receivers.
+func audioPayload(index: Int64, senderNs: Int64, frames: UnsafePointer<Float>, count: Int) -> Data {
+    var p = Data(capacity: 16 + count * 4)
+    p.put(index.littleEndian); p.put(senderNs.littleEndian)
+    var pcm = [Int16](repeating: 0, count: count * 2)
+    for i in 0..<(count * 2) { pcm[i] = Int16(max(-1, min(1, frames[i])) * 32767).littleEndian }
+    pcm.withUnsafeBytes { p.append(contentsOf: $0) }
+    return p
+}
+
 // MARK: - Sender
 
 final class Broadcaster {
@@ -102,13 +112,8 @@ final class Broadcaster {
         }
     }
 
-    func send(index: Int64, senderNs: Int64, frames: UnsafePointer<Float>, count: Int) {
-        var p = Data(capacity: 16 + count * 4)
-        p.put(index.littleEndian); p.put(senderNs.littleEndian)
-        var pcm = [Int16](repeating: 0, count: count * 2)
-        for i in 0..<(count * 2) { pcm[i] = Int16(max(-1, min(1, frames[i])) * 32767).littleEndian }
-        pcm.withUnsafeBytes { p.append(contentsOf: $0) }
-        let msg = frame(.audio, p)
+    func send(payload: Data) {
+        let msg = frame(.audio, payload)
         q.async { [self] in
             for c in conns.values where c.state == .ready { c.send(content: msg, completion: .idempotent) }
         }

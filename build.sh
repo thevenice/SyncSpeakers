@@ -16,7 +16,7 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 swiftc -O -parse-as-library -target arm64-apple-macos14.4 \
-  -framework SwiftUI -framework CoreAudio -framework AudioToolbox -framework AppKit -framework Network \
+  -framework SwiftUI -framework CoreAudio -framework AudioToolbox -framework AppKit -framework Network -framework CoreImage -framework CryptoKit \
   Sources/*.swift -o "$APP/Contents/MacOS/SyncSpeakers"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -26,8 +26,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>com.prakash.syncspeakers</string>
   <key>CFBundleExecutable</key><string>SyncSpeakers</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.2</string>
-  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>0.3</string>
+  <key>CFBundleVersion</key><string>3</string>
   <key>LSMinimumSystemVersion</key><string>14.4</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>CFBundleIconFile</key><string>AppIcon</string>
