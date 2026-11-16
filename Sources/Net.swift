@@ -4,7 +4,7 @@
 // offset between the two Macs' clocks, then play each frame at sender-time + buffer.
 //
 // Message: [type:1][length:4 LE][payload]
-//   1 format  sampleRate:f64 delayNs:i64
+//   1 format  sampleRate:f64 delayNs:i64 then sender name (UTF-8)
 //   2 audio   index:i64 senderNs:i64 then int16 L/R pairs
 //   3 ping    t0:i64                  (receiver → sender)
 //   4 pong    t0:i64 senderNow:i64    (sender → receiver)
@@ -70,6 +70,7 @@ final class Broadcaster {
 
     init(sampleRate: Double, delayNs: Int64) {
         var p = Data(); p.put(sampleRate); p.put(delayNs.littleEndian)
+        p.append(Data(myServiceName.utf8))
         formatMsg = frame(.format, p)
     }
 
@@ -174,9 +175,10 @@ final class Receiver {
             guard body.count >= 16 else { return }
             let sr = body.get(0, Double.self)
             delayNs = Int64(littleEndian: body.get(8, Int64.self))
+            let name = body.count > 16 ? String(decoding: body.dropFirst(16), as: UTF8.self) : from
             player?.stop()
             let p = Player(sampleRate: sr, device: CA.defaultOutput, delayNs: delayNs + trimNs)
-            do { try p.start(); player = p; onSender?(from) } catch { NSLog("SyncSpeakers player: \(error)") }
+            do { try p.start(); player = p; onSender?(name) } catch { NSLog("SyncSpeakers player: \(error)") }
         case .audio:
             guard let player, body.count > 16 else { return }
             let index = Int64(littleEndian: body.get(0, Int64.self))

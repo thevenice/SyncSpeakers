@@ -1,12 +1,13 @@
 <p align="center">
-  <img src="assets/icon.png" width="160" alt="SyncSpeakers icon">
+  <img src="assets/banner.png" alt="SyncSpeakers — whole-house audio from one Mac">
 </p>
 
-<h1 align="center">SyncSpeakers</h1>
+<p align="center">
+  Whatever your Mac plays — any app — comes out of every speaker and every Mac in the house at the same moment.
+</p>
 
 <p align="center">
-  Whole-house audio from one Mac. Whatever your Mac plays — any app — comes out of every speaker
-  and every Mac in the house at the same moment.
+  <a href="https://github.com/thevenice/SyncSpeakers/releases/latest"><b>Download for Mac</b></a>
 </p>
 
 <p align="center">
@@ -27,6 +28,20 @@ browser, Apple Music, VLC, games — and plays it, in sync, on:
 
 Think of it as a DIY multi-room / home-theatre system made from the Macs and speakers you already have.
 No accounts, no cloud, no extra hardware. One small native app, about 1,000 lines of Swift.
+
+## Screenshots
+
+**The source Mac** — pick local speakers and other Macs, then press Play Everywhere:
+
+<p align="center">
+  <img src="assets/screenshot-main.png" width="760" alt="Source Mac playing to its built-in speakers and two other Macs">
+</p>
+
+**A receiving Mac** — just leave the app open; it plays whatever the source sends and lets you fine-tune its timing:
+
+<p align="center">
+  <img src="assets/screenshot-receiver.png" width="760" alt="A receiving Mac playing sound from the source Mac">
+</p>
 
 ## Features
 
@@ -50,14 +65,14 @@ No accounts, no cloud, no extra hardware. One small native app, about 1,000 line
 ## Install
 
 **Download:** grab `SyncSpeakers-…-macOS-arm64.zip` from the
-[latest release](https://github.com/thevenice/music-sync-mac/releases/latest), unzip it, move the app to
+[latest release](https://github.com/thevenice/SyncSpeakers/releases/latest), unzip it, move the app to
 Applications, then right-click → **Open** the first time.
 
 **Or build it yourself:**
 
 ```bash
-git clone https://github.com/thevenice/music-sync-mac.git
-cd music-sync-mac
+git clone https://github.com/thevenice/SyncSpeakers.git
+cd SyncSpeakers
 ./build.sh
 open SyncSpeakers.app
 ```
@@ -127,7 +142,7 @@ TCP, each message `[type: u8][length: u32 LE][payload]`:
 
 | Type | Payload |
 | --- | --- |
-| `1` format | sample rate `f64`, buffer `i64` ns |
+| `1` format | sample rate `f64`, buffer `i64` ns, then the source Mac's name (UTF-8) |
 | `2` audio | first frame index `i64`, capture time `i64` ns, interleaved stereo `i16` |
 | `3` ping | sender time `i64` ns (receiver → source) |
 | `4` pong | echoed time `i64`, source time `i64` ns |
@@ -139,6 +154,7 @@ Sources/main.swift   SwiftUI window and the Router that wires everything togethe
 Sources/Audio.swift  Core Audio helpers, system-audio capture, time-aligned player
 Sources/Net.swift    Bonjour discovery, streaming sender, receiver with clock sync
 tools/make-icon.swift  draws assets/icon.png
+tools/make-art.swift   trims screenshots and draws assets/banner.png
 build.sh             builds SyncSpeakers.app and SyncSpeakers.zip
 ```
 
