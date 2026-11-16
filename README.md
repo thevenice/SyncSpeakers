@@ -49,6 +49,12 @@ No accounts, no cloud, no extra hardware. One small native app, about 1,000 line
 
 ## Install
 
+**Download:** grab `SyncSpeakers-…-macOS-arm64.zip` from the
+[latest release](https://github.com/thevenice/music-sync-mac/releases/latest), unzip it, move the app to
+Applications, then right-click → **Open** the first time.
+
+**Or build it yourself:**
+
 ```bash
 git clone https://github.com/thevenice/music-sync-mac.git
 cd music-sync-mac
