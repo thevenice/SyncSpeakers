@@ -32,10 +32,16 @@ No accounts, no cloud, no extra hardware. One small native app, about 1,200 line
 
 ## Screenshots
 
-**The source Mac** — pick local speakers and other Macs, then press Play Everywhere:
+**The source Mac** — pick local speakers and other Macs, press Play Everywhere, and show the QR code to phones:
 
 <p align="center">
-  <img src="assets/screenshot-main.png" width="760" alt="Source Mac playing to its built-in speakers and two other Macs">
+  <img src="assets/screenshot-main.png" width="760" alt="Source Mac playing to its built-in speakers, two other Macs and three phones">
+</p>
+
+**Phones** — scan, tap Join, and the phone plays in sync in its browser. No app to install:
+
+<p align="center">
+  <img src="assets/screenshot-phones.png" width="520" alt="Two phones: the Join screen and the Playing in sync screen">
 </p>
 
 **A receiving Mac** — just leave the app open; it plays whatever the source sends and lets you fine-tune its timing:
@@ -169,7 +175,7 @@ Sources/Audio.swift  Core Audio helpers, system-audio capture, time-aligned play
 Sources/Net.swift    Bonjour discovery, streaming sender, receiver with clock sync
 Sources/Web.swift    web server + WebSocket for phones, and the phone page itself
 tools/make-icon.swift  draws assets/icon.png
-tools/make-art.swift   trims screenshots and draws assets/banner.png
+tools/make-art.swift   trims screenshots, draws the phone frames and assets/banner.png
 build.sh             builds SyncSpeakers.app and SyncSpeakers.zip
 ```
 
